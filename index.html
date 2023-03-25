@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Au0Trans</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css" />
+    <!-- <link href="https://fonts.googleapis.com/css?family=M+PLUS+Rounded+1c&display=swap" rel="stylesheet"> -->
+    <!-- <script src="https://unpkg.com/kuroshiro@1.1.2/dist/kuroshiro.min.js"></script>
+    <script src="https://unpkg.com/kuroshiro-analyzer-kuromoji@1.1.0/dist/kuroshiro-analyzer-kuromoji.min.js"></script> -->
+    <!-- <script src="https://www.unpkg.com/wavesurfer@1.3.4/dist/wavesurfer.min.js"></script> -->
+    <script src="https://unpkg.com/wavefile@11.0.0/dist/wavefile.js"></script>
+    <script src="https://unpkg.com/audiobuffer-to-wav@1.0.0/index.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+
+        #transcript {
+            margin: 10px 10px;
+            min-height: 35px;
+            position: fixed;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            font-size: 25px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .parent {
+            /* margin-top: 110px; */
+            margin-top: 35px;
+            flex-grow: 0;
+            flex-shrink: 0;
+        }
+
+        #speech-box {
+            position: fixed;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #272727;
+            color: #fff;
+            margin: auto;
+            min-width: 450px;
+            max-width: 50%;
+            min-height: 20px;
+            height: 80px;
+            padding: 10px;
+            pointer-events: auto;
+            font-size: larger;
+            line-height: 1.5;
+            overflow-y: auto;
+            box-shadow: 0 10px 10px -6px rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            display: none;
+        }
+
+        #mic-outer-div {
+            --primary-color: darkslategray;
+            --primary-alt-color: rgb(0, 139, 139);
+            --secondary-color: orangered;
+            --secondary-alt-color: orangered;
+            --mic-color: orangered;
+            --color-linear-1: linear-gradient(155deg, #1fb851, #565ccf);
+            --color-bottom-m: #4e705e;
+            --color-bottom-status: #e1eeb8;
+            --color-note-main: darkcyan;
+            --color-dictionary-main: rgb(99, 165, 0);
+            font-family: helvetica neue, Helvetica, Arial, sans-serif;
+            line-height: 64px;
+            padding: 0;
+            margin: 0;
+            border: 0;
+            display: flex;
+            justify-content: center;
+            min-width: 100px;
+            margin-bottom: 10px;
+        }
+
+        #record-toggle {
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            height: 56px !important;
+            width: 56px !important;
+            margin: 0 20px;
+            bottom: 15px;
+            box-shadow: 0 8px 6px -6px #000;
+            z-index: 20;
+        }
+
+        .wave {
+            position: relative;
+            overflow: hidden;
+            transition: background 400ms;
+            color: #fff;
+            outline: 0;
+            border: 0;
+            border-radius: 0.25rem;
+        }
+
+        .btn-mic {
+            background-color: var(--primary-color);
+            justify-content: center;
+            align-items: center;
+            background-color: transparent;
+            cursor: pointer;
+            height: 48px;
+            vertical-align: middle;
+            min-width: 48px;
+            font-size: 16px;
+            padding: 0 12px;
+        }
+
+        #all-text {
+            height: 80vh;
+            overflow-y: auto;
+            padding: 10px;
+            padding-bottom: 20px;
+            /* font-family: 'M PLUS Rounded 1c', 'ヒラギノ角ゴ Pro W3', Meiryo, 'メイリオ', sans-serif; */
+            /* font-family: "Times New Roman"; */
+            font-family: Hiragino Kaku Gothic ProN, Hiragino Sans, Meiryo, sans-serif;
+            font-size: 23px;
+            box-shadow: 0px 0px 1px rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            scroll-behavior: smooth;
+        }
+
+        #all-text span {
+            display: block;
+        }
+
+        .on {
+            background-color: var(--secondary-color) !important;
+        }
+
+        .effect-pulse {
+            background-color: var(--mic-color);
+            color: #fff;
+            animation: pulse 2000ms infinite;
+            will-change: transform, box-shadow;
+        }
+
+        .current-result {
+            background-color: #272727;
+            color: #fff;
+            /* min-width: 95%; */
+            min-height: 80px;
+            box-shadow: 0 10px 10px -6px rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 10px;
+            left: 50%;
+            position: fixed;
+            transform: translateX(-50%);
+            width: calc(100% - 60px);
+            bottom: 50px;
+            margin: 0;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(255, 121, 63, 0.7);
+            }
+
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px transparent;
+            }
+
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 transparent;
+            }
+        }
+
+        #b-note-download {
+            width: 35px;
+            height: 35px;
+            padding: 2px;
+            position: absolute;
+            bottom: 30px;
+            right: 0;
+            margin: 0;
+        }
+
+        .container-div {
+            height: 90vh;
+            flex-grow: 1;
+            flex-shrink: 1;
+        }
+
+        .play-btn {
+            width: 27px;
+            height: 25px;
+            padding: 5px;
+            margin: 0;
+            text-align: center;
+            line-height: 0;
+            margin-left: 5px;
+        }
+
+        .alert {
+            display: none;
+            padding: 15px;
+            background-color: #ff2121;
+            color: white;
+            border-radius: 4px;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .alert.show {
+            display: block;
+            opacity: 1;
+        }
+
+        #virtual-speech {
+            min-height: 100px !important;
+        }
+
+        #all-text .recored-text {
+            position: relative;
+            margin-bottom: 0.5rem;
+        }
+
+        #all-text .loading-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 2px;
+            width: 0%;
+            background-color: #4CAF50;
+            transition: width 0.2s ease-in-out;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container parent">
+        <!-- <div class="row">
+            <div class="one-half column">
+                <button id="record-toggle">
+                    Bắt đầu ghi âm
+                </button>
+            </div>
+        </div> -->
+        <div class="row">
+            <div id="mic-outer-div">
+                <button class="wave btn-mic" id="record-toggle" title="Start / stop 'ESC' key">
+                    <svg xmlns="http://www.w3.org/2000/svg" enable-background="new 0 0 24 24" height="24px"
+                        viewBox="0 0 24 24" width="24px" fill="#FFFFFF" style="margin: auto; display: block">
+                        <g>
+                            <rect fill="none" height="24" width="24"></rect>
+                            <rect fill="none" height="24" width="24"></rect>
+                            <rect fill="none" height="24" width="24"></rect>
+                        </g>
+                        <g>
+                            <g></g>
+                            <g>
+                                <path
+                                    d="M12,14c1.66,0,3-1.34,3-3V5c0-1.66-1.34-3-3-3S9,3.34,9,5v6C9,12.66,10.34,14,12,14z">
+                                </path>
+                                <path
+                                    d="M17,11c0,2.76-2.24,5-5,5s-5-2.24-5-5H5c0,3.53,2.61,6.43,6,6.92V21h2v-3.08c3.39-0.49,6-3.39,6-6.92H17z">
+                                </path>
+                            </g>
+                        </g>
+                    </svg><span class="ripple" style="height: 56px; width: 56px; left: 8px; top: 4px"></span>
+                </button>
+                <button class="" id="b-note-download" title="Download">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="25px" height="25px" viewBox="0 0 24 24" fill="none">
+                        <path
+                            d="M18.22 20.75H5.78C5.43322 20.7359 5.09262 20.6535 4.77771 20.5075C4.4628 20.3616 4.17975 20.155 3.94476 19.8996C3.70977 19.6442 3.52745 19.3449 3.40824 19.019C3.28903 18.693 3.23525 18.3468 3.25 18V15C3.25 14.8011 3.32902 14.6103 3.46967 14.4697C3.61033 14.329 3.80109 14.25 4 14.25C4.19892 14.25 4.38968 14.329 4.53033 14.4697C4.67099 14.6103 4.75 14.8011 4.75 15V18C4.72419 18.2969 4.81365 18.5924 4.99984 18.8251C5.18602 19.0579 5.45465 19.21 5.75 19.25H18.22C18.5154 19.21 18.784 19.0579 18.9702 18.8251C19.1564 18.5924 19.2458 18.2969 19.22 18V15C19.22 14.8011 19.299 14.6103 19.4397 14.4697C19.5803 14.329 19.7711 14.25 19.97 14.25C20.1689 14.25 20.3597 14.329 20.5003 14.4697C20.641 14.6103 20.72 14.8011 20.72 15V18C20.75 18.6954 20.5041 19.3744 20.0359 19.8894C19.5677 20.4045 18.9151 20.7137 18.22 20.75Z"
+                            fill="#000000" />
+                        <path
+                            d="M12 15.75C11.9015 15.7504 11.8038 15.7312 11.7128 15.6934C11.6218 15.6557 11.5392 15.6001 11.47 15.53L7.47 11.53C7.33752 11.3878 7.2654 11.1997 7.26882 11.0054C7.27225 10.8111 7.35096 10.6258 7.48838 10.4883C7.62579 10.3509 7.81118 10.2722 8.00548 10.2688C8.19978 10.2654 8.38782 10.3375 8.53 10.47L12 13.94L15.47 10.47C15.6122 10.3375 15.8002 10.2654 15.9945 10.2688C16.1888 10.2722 16.3742 10.3509 16.5116 10.4883C16.649 10.6258 16.7277 10.8111 16.7312 11.0054C16.7346 11.1997 16.6625 11.3878 16.53 11.53L12.53 15.53C12.4608 15.6001 12.3782 15.6557 12.2872 15.6934C12.1962 15.7312 12.0985 15.7504 12 15.75Z"
+                            fill="#000000" />
+                        <path
+                            d="M12 15.75C11.8019 15.7474 11.6126 15.6676 11.4725 15.5275C11.3324 15.3874 11.2526 15.1981 11.25 15V4C11.25 3.80109 11.329 3.61032 11.4697 3.46967C11.6103 3.32902 11.8011 3.25 12 3.25C12.1989 3.25 12.3897 3.32902 12.5303 3.46967C12.671 3.61032 12.75 3.80109 12.75 4V15C12.7474 15.1981 12.6676 15.3874 12.5275 15.5275C12.3874 15.6676 12.1981 15.7474 12 15.75Z"
+                            fill="#000000" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="wave"></div>
+    <div class="container-div">
+        <div id="all-text">
+            <p class="current-result"></p>
+            <div id="virtual-speech"></div>
+        </div>
+        <p id="speech-box">。。。</p>
+    </div>
+
+    <div id="replay-sample" style="display: none">
+        <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" fill="#000000" height="15px"
+            width="15px" version="1.1" id="Layer_1" viewBox="0 0 472.615 472.615" xml:space="preserve">
+            <g>
+                <g>
+                    <path
+                        d="M355.232,0l-13.525,13.525l65.821,65.821h-279.17c-52.894,0-95.924,43.031-95.924,95.919v59.633h19.128v-59.633    c0-42.343,34.452-76.79,76.796-76.79h279.17l-65.821,65.821l13.525,13.525l88.91-88.91L355.232,0z" />
+                </g>
+            </g>
+            <g>
+                <g>
+                    <path
+                        d="M421.053,237.714v59.632c0,42.344-34.452,76.795-76.796,76.795H65.087l65.821-65.825l-13.525-13.525l-88.909,88.914    l88.909,88.91l13.525-13.525L65.087,393.27h279.17c52.895,0,95.924-43.031,95.924-95.924v-59.632H421.053z" />
+                </g>
+            </g>
+        </svg>
+    </div>
+    <div id="alert" class="alert"></div>
+
+    <script>
+
+
+        document.addEventListener("DOMContentLoaded", function () {
+
+            module = {}
+
+
+        });
+        let recordedChunks = [];
+        let alertDiv = document.getElementById('alert');
+        // Get the list of available devices
+        let selectedDeviceId = "a6f62344d6a5c657dd675ff3e4f14ee6e1c51f041b380dc0bc0ef73b6773039e";
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+            // Filter the list to only show audio output devices
+            const outputDevices = devices.filter(device => device.kind === 'audiooutput');
+
+            // Print the list of output devices
+            console.log(outputDevices);
+
+            // Create a select element and append it to the body
+            const selectElement = document.createElement('select');
+            selectElement.id = 'output-device-select';
+            document.body.appendChild(selectElement);
+
+            // Create an option element for each output device and add it to the select element
+            outputDevices.forEach(device => {
+                const optionElement = document.createElement('option');
+                optionElement.value = device.deviceId;
+                optionElement.text = device.label || `Output device ${selectElement.children.length + 1}`;
+                selectElement.appendChild(optionElement);
+            });
+
+            selectElement.value = selectedDeviceId;
+
+            // Listen for changes to the select element and update the AudioContext with the selected output device
+            selectElement.addEventListener('change', event => {
+                selectedDeviceId = event.target.value;
+                const selectedDevice = outputDevices.find(device => device.deviceId === selectedDeviceId);
+                console.log(selectedDeviceId)
+            });
+        });
+
+
+        // const kuroshiro = new Kuroshiro();
+
+        // async function convertToHiragana(text) {
+        //     return await kuroshiro.init(new KuromojiAnalyzer({ dictPath: 'https://takuyaa.github.io/kuromoji.js/demo/kuromoji/dict/' }))
+        //         .then(async function () {
+        //             return await kuroshiro.convert(text, { mode: "okurigana", to: "hiragana" });
+        //         }).then(async function (result) {
+        //             console.log(result);
+        //         });
+        // }
+
+        // https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/
+
+        // console.log(convertToHiragana("最高！"))
+
+
+        const ENDERS =
+            /かったよ|でしたか|しね|でしたね|ですよね|ですね|そうですね|きまーす|ております|えー|んだ|わよ|っけ|だよ|だね|て欲しい|てほしい|んです|ものだ|ますよ|ます|ました|なんだ|なさい|ないだ|と思う|ですよ|ですか|です|だろう|だって|だった|だっけ|だから|そうだ|じゃあ|します|しまう|したか|んだけど|ようです|ものです|のです|なんです|ないです|ないですね|と考える|と思った|と思うか|ではない|ですのに|ですので|ですね|ですから|でしょう|でした|できます|ている|である|だろうか|だっから|そうです|じゃない|しておく|からです|になります|なんですか|と言います|と考えるか|と考えます|と考えます|と思います|と思います|と思います|といけない|ではないか|でしょうか|てしまった|てしまう|てください|ています|ていました|てあります|じゃないか|いいですか|になりました|にございます|と考えますか|と思われます|と思いますか|というわけで|というわけで|ということで|でもあります|ではなかった|ではないです|ではないかな|でございます|そうではない|そうでしょう|そうじゃない|しておきます|ございません|かもしれない|になるでしょう|になりましょう|にございました|と考えられます|と思っています|というわけです|というわけです|ということです|でもありません|ではないですか|ではあるまいか|ではありません|でございました|そうでしょうか|ございませんか|に決まっています|になるでしょうか|なければなりない|と言っていました|というわけですか|というわけでした|ということになる|ということなので|ということですか|ということでした|ではなかったです|ではないですかね|ではないでしょう|ではございません|ではありませんか|そうではないです|そうじゃないです|に決まっていますね|なければなりません|というわけでしょう|ということになるか|ということでしょう|ではなかったですか|ではないでしょうか|ではありませんかね|そうではありません|そうじゃありません|じゃなかったですか|じゃないでしょうか|しておいてください|になるかもしれません|というわけでしょうか|ということになります|ということでしょうか|ではないでしょうかね|ではないかと考えます|ではないかと思います|ではありませんでした|そうではございません|そうじゃございません|ということになりますか|ではなかったでしょうか|ではないかと思われます|ではございませんでした|そうではないでしょうか|そうじゃないでしょうか|じゃなかったでしょうか|ということなのでしょうか|ではありませんでしょうか|ではないでしょうかと思います|ではないでしょうかと思われます/g;
+
+        function checkEndOfSentence(text) {
+            // let newText = text.replace(/。/g, "");
+            // newText = newText.replace(ENDERS, (match) => match + "。");
+
+            // return newText;
+            let signatureChar = "";
+            for (let i = 0; i < text.length; i++) {
+                signatureChar += text.charAt(i);
+                // console.log(signatureChar.length)
+                if (signatureChar.length >= 4) {
+                    let lastThreeChars = signatureChar.slice(-4);
+
+                    if (ENDERS.test(lastThreeChars)) {
+                        signatureChar += "。";
+                        // Thêm dấu "。" vào sau lastThreeChars và chèn lại vào text
+                    }
+                }
+
+
+            }
+            return signatureChar;
+        }
+
+        function addPeriodsToJapaneseText(text) {
+            const match = ENDERS.exec(text);
+            if (match) {
+                return text.slice(0, match.index + match[0].length) + ' ' + addPeriodsToJapaneseText(text.slice(match.index + match[0].length));
+            } else {
+                return text + '。';
+            }
+        }
+
+
+        document
+            .getElementById("record-toggle")
+            .addEventListener("click", toggleRecording);
+
+        document
+            .getElementById("b-note-download")
+            .addEventListener("click", saveToDrive);
+
+        const allText = document.getElementById("all-text");
+
+        let mediaRecorder;
+        let recognition;
+
+        let isRecording = false;
+
+        let stopAutoScroll = false;
+        let autoScrollTimeoutId = false;
+        let autoStartTimeoutId = null;
+
+        // Hàm tự động scroll xuống cuối phần tử
+        function autoScroll() {
+            if (!stopAutoScroll) {
+                allText.scrollTop = allText.scrollHeight;
+            }
+        }
+
+        // Hàm tạm dừng tính năng tự động scroll trong 2 giây
+        function pauseAutoScroll() {
+            stopAutoScroll = true;
+            clearTimeout(autoScrollTimeoutId);
+            autoScrollTimeoutId = setTimeout(() => {
+                stopAutoScroll = false;
+                autoScroll();
+            }, 5000);
+        }
+
+
+
+        // Xử lý sự kiện scroll của phần tử all-text
+        allText.addEventListener("scroll", function (event) {
+            pauseAutoScroll();
+        });
+
+        function findFirstDifference(str1, str2) {
+            if (str1.endsWith(str2)) {
+                return str2.length;
+            }
+
+            let minLength = Math.min(str1.length, str2.length);
+
+            for (let i = 0; i < minLength; i++) {
+                if (str1[i] !== str2[i]) {
+                    return i;
+                }
+            }
+
+            return minLength;
+        }
+
+        function saveToDrive() {
+            function showUrl(url) {
+                const message = `File đã được lưu vào Drive với đường dẫn: ${url}`;
+                console.log(message);
+            }
+            // Lấy nội dung của thẻ body
+            const content = document.getElementById("all-text").innerText;
+
+            google.script.run
+                .withSuccessHandler(showUrl)
+                .saveWebContentToDrive(content);
+        }
+
+        // Define an array
+        const speechArr = [];
+
+        // Define a function to be triggered when a new element is added to the array
+        function onNewElementPushed(target) {
+            let timeoutID = setTimeout(function () {
+                let speechObject = target[target.length - 1]
+                let p = speechObject.element
+                let buttonEl = p.querySelector('.play-btn');
+                // let originalButton = buttonEl.cloneNode(true);
+                // let originalOnClick = buttonEl.onclick;
+                p.textContent = checkEndOfSentence(
+                    speechObject.text
+                );
+                // p.appendChild(buttonEl);
+                // buttonEl.onclick = originalOnClick;
+
+                CreateAudioFileAndAddButton()
+
+                clearTimeout(timeoutID)
+            }, 100);
+
+            // let speechObject = speechArr[speechArr.length - 1]
+            // speechObject.element.textContent = checkEndOfSentence(
+            //     speechObject.text
+            // );
+
+
+
+        }
+
+        // Create a proxy object for the array
+        let watchedSpeechArr = new Proxy(speechArr, {
+            // Define a "set" trap to intercept new elements added to the array
+            set: function (target, property, value) {
+
+                // Add the new element to the array
+                target[property] = value;
+                // Call the onNewElementPushed function when a new element is added to the array
+                if (property === 'length') {
+                    onNewElementPushed(target);
+                }
+                return true;
+            }
+        });
+
+        function listenTextChange(target, callback) {
+            // Tạo một observer instance
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    // console.log(mutation)
+                    if (mutation.type === 'childList') {
+                        // Trigger callback khi nội dung text của target thay đổi
+                        callback(mutation.target);
+                    }
+                });
+            });
+
+            // Bắt đầu observer với các tùy chọn cấu hình
+            observer.observe(target, { childList: true, subtree: true });
+
+            // Trả về observer instance
+            return observer;
+        }
+
+        // Định nghĩa hàm callback
+        const callback = (target) => {
+            let myDiv = document.getElementById('all-text');
+            let pElements = myDiv.querySelectorAll('div');
+
+            let divHeight = document.getElementById('virtual-speech').style.height
+
+            if (divHeight != target.clientHeight) {
+                document.getElementById('virtual-speech').style.height = target.clientHeight.toString() + 'px';
+            }
+        };
+
+        async function getMicrophoneDeviceId() {
+            let devices = await navigator.mediaDevices.enumerateDevices();
+            let microphoneDevices = devices.filter((device) => device.kind === 'audioinput');
+
+            // Lấy ID của microphone đầu tiên
+            console.log(microphoneDevices)
+            let microphoneDeviceId = microphoneDevices[0].deviceId;
+
+            return microphoneDeviceId;
+        }
+
+        // let wavesurfer = WaveSurfer.create({
+        //     container: document.querySelector('#wave'),
+        //     backend: 'MediaElement'
+        // });
+
+
+        async function startRecording() {
+
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+            });
+
+            // const constraints = {
+            //     audio: {
+            //         deviceId: "7d2aae8028badc3d7efd9c783624ef3cce080254564071bd83e6ecbea22f8830",
+            //     },
+            // };
+
+            // const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+            let mediaRecorderOptions = { mimeType: 'audio/webm' };
+            mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
+
+            // let microphoneDeviceIda = await getMicrophoneDeviceId();
+            // console.log(microphoneDeviceIda)
+
+
+            // const audioTracks = stream.getAudioTracks();
+            // const settings = audioTracks[0].getSettings();
+            // let microphoneDeviceId = settings.deviceId;
+            // console.log(settings)
+
+            const bitRate = 16; // bits per sample
+            const numberOfChannels = 2; // stereo
+            const sampleRate = 44100; // samples per second
+
+            mediaRecorder.addEventListener('dataavailable', (event) => {
+                console.log(recordedChunks, "dataavailable")
+                if (event.data.size > 0) {
+                    let audioChunk = {
+                        id: recordedChunks.length,
+                        data: event.data,
+                        size: event.data.size,
+                        streamId: event.currentTarget.stream.id
+                    }
+                    recordedChunks.push(audioChunk)
+                }
+            });
+
+
+            mediaRecorder.addEventListener('stop', () => {
+                console.log(recordedChunks, "stop")
+            });
+
+            mediaRecorder.addEventListener('onerror', (event) => {
+                console.log(event)
+            });
+
+            mediaRecorder.start();
+
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                recognition = new webkitSpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = "ja-JP";
+                recognition.start();
+                let text = "";
+                let countAutoStart = 0;
+                // let spanWrapper = document.createElement("p");
+                // spanWrapper.classList.add("current-result");
+                // allText.appendChild(spanWrapper);
+                let spanWrapper = document.getElementsByClassName("current-result")[0]
+                listenTextChange(spanWrapper, callback);
+
+                autoStartTimeoutId = setInterval(function () {
+                    countAutoStart += 500;
+                    if (recognition && countAutoStart >= 2000) {
+                        countAutoStart = 0;
+                        recognition.stop();
+                    }
+                }, 500);
+
+                recognition.onresult = function (event) {
+                    const speechBox = document.getElementById("speech-box");
+                    let transcript = "";
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        transcript += event.results[i][0].transcript;
+                    }
+
+                    // speechBox.innerText = transcript;
+                    spanWrapper.innerText = transcript
+
+                    // console.log(transcript);
+                    countAutoStart = 0; //reset
+                    if (event.results[event.results.length - 1].isFinal) {
+                        let speechObject = {
+                            element: spanWrapper,
+                            text: spanWrapper.innerText,
+                        }
+                        spanWrapper.classList.add("recored-text");
+
+                        if (isRecording) {
+                            mediaRecorder.requestData();
+                        }
+                        spanWrapper.classList.remove("current-result");
+                        watchedSpeechArr.push(speechObject)
+
+                        spanWrapper = document.createElement("p");
+                        spanWrapper.classList.add("current-result");
+
+                        spanWrapper.innerText = ""
+                        document.getElementById('virtual-speech').insertAdjacentElement('beforebegin', spanWrapper);
+
+                        listenTextChange(document.getElementsByClassName("current-result")[0], callback);
+                        autoScroll();
+                    }
+
+                    // speechBox.scrollTop = speechBox.scrollHeight;
+
+                    // autoScroll();
+
+                };
+
+            } else {
+                alert(
+                    "Trình duyệt của bạn không hỗ trợ Google Speech to Text API mặc định của Chrome."
+                );
+            }
+
+            recognition.onerror = (event) => {
+                console.error(`Speech recognition error detected: ${event.error}`);
+                if (event.error === "network" || event.error === "no-speech") {
+                    // Nếu lỗi là do mạng, hãy khởi động lại đối tượng SpeechRecognition
+                    recognition.stop();
+                    // setTimeout(() => {
+                    //     recognition.start();
+                    // }, 1000); // Đợi 1 giây trước khi khởi động lại
+                }
+            };
+
+            recognition.onend = () => {
+                if (!isRecording) {
+                    document.getElementById("record-toggle").classList.remove("on");
+                    document
+                        .getElementById("record-toggle")
+                        .classList.remove("effect-pulse");
+                    console.log("Speech recognition service disconnected by manual");
+                    speechArr.length = 0
+                } else {
+                    recognition.start();
+                    console.log(
+                        "Speech recognition service disconnected and trying restart"
+                    );
+                }
+            };
+
+            recognition.onnomatch = () => {
+                console.error("Speech not recognized");
+            };
+
+            recognition.addEventListener("soundend", (event) => {
+                console.log("Sound has stopped being received");
+            });
+
+            recognition.addEventListener("speechend", () => {
+                console.log("Speech has stopped being detected");
+            });
+
+            recognition.onspeechstart = () => {
+                console.log("Speech recognition service has started");
+            };
+        }
+
+        async function stopRecording() {
+            if (!mediaRecorder) return;
+
+            mediaRecorder.stop();
+
+            if (recognition) {
+                recognition.stop();
+            }
+        }
+
+        function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+                isRecording = false;
+                document.getElementById("record-toggle").classList.remove("on");
+                document
+                    .getElementById("record-toggle")
+                    .classList.remove("effect-pulse");
+                clearInterval(autoStartTimeoutId);
+                // document.getElementById("record-toggle").textContent = "Bắt đầu ghi âm";
+            } else {
+                startRecording();
+                isRecording = true;
+                document.getElementById("record-toggle").classList.add("on");
+                document
+                    .getElementById("record-toggle")
+                    .classList.add("effect-pulse");
+                // document.getElementById("record-toggle").textContent = "Ngừng ghi âm";
+            }
+        }
+
+
+        //**********************************************************
+        function createBlobURLChunk(audioChunks, audioChunk, playBtn) {
+            return new Promise(function (resolve, reject) {
+                let blobUrl;
+                const dataArray = audioChunks.map(ck => ck.data);
+                let fullBlob = new Blob(dataArray, { type: 'audio/webm' });
+
+                // let adblob = URL.createObjectURL(blob);
+
+                // console.log(adblob, 222)
+
+                let parentP = playBtn.parentNode;
+                let id = parentP.getAttribute('data-id');
+
+                let audioContext = new AudioContext();
+
+                let reader = new FileReader();
+
+                reader.onloadend = () => {
+                    let arrayBuffer = reader.result;
+
+                    audioContext.decodeAudioData(arrayBuffer, function (audioBuffer) {
+
+                        let totalDuration = audioBuffer.duration;
+
+                        let totalSize = audioChunks.map(function (chunk) {
+                            return chunk.size;
+                        }).reduce(function (a, b) {
+                            return a + b;
+                        }, 0);
+
+
+                        let key = 'id'
+                        let index = audioChunks.findIndex(obj => obj.id === audioChunk.id);
+
+                        let previousSize = audioChunks.slice(0, index).map(function (chunk) {
+                            return chunk.size;
+                        }).reduce(function (acc, cur) {
+                            return acc + cur;
+                        }, 0);
+
+                        let startOffsetInSeconds = (previousSize / totalSize) * totalDuration;
+                        let durationInSeconds = (audioChunk.size / totalSize) * totalDuration;
+
+                        console.log(startOffsetInSeconds, durationInSeconds)
+
+                        AudioBufferSlice(audioBuffer, startOffsetInSeconds, startOffsetInSeconds + durationInSeconds, function (error, slicedAudioBuffer) {
+                            if (error) {
+                                console.error(error);
+                            } else {
+
+                                // let source = audioContext.createBufferSource();
+                                // source.buffer = slicedAudioBuffer;
+
+                                // let gainNode = audioContext.createGain();
+                                // gainNode.gain.value = 1;
+                                // source.connect(gainNode);
+                                // source.connect(audioContext.destination);
+                                // source.start();
+
+                                // let blob = bufferToWave(slicedAudioBuffer);
+                                let wav = audioBufferToWav(slicedAudioBuffer)
+
+                                let audioBlob = wavArrayBufferToBlob(wav)
+                                blobUrl = URL.createObjectURL(audioBlob);
+                                console.log('Blob URL:', blobUrl);
+                                playBtn.blobUrl = blobUrl
+                                resolve(blobUrl);
+                            }
+                        });
+                    });
+
+
+
+                }
+
+                reader.onerror = function () {
+                    console.error('Error occurred while reading blob:', reader.error);
+                }
+
+                reader.readAsArrayBuffer(fullBlob);
+            });
+        }
+
+
+        function getSilentDuration(audioBuffer, startByte, endByte) {
+            let bufferLength = audioBuffer.length;
+            let sampleRate = audioBuffer.sampleRate;
+            let numChannels = audioBuffer.numberOfChannels;
+            let bytesPerSample = 4; // assuming 32-bit float
+            let samplesPerByte = numChannels * bytesPerSample;
+            let startSample = startByte / samplesPerByte;
+            let endSample = endByte / samplesPerByte;
+            let silentDuration = 0;
+            let isSilent = true;
+            let threshold = 0.001
+            for (let channel = 0; channel < numChannels; channel++) {
+                let channelData = audioBuffer.getChannelData(channel);
+                for (let i = startSample; i < endSample; i++) {
+                    let absValue = Math.abs(channelData[i]);
+                    if (absValue > threshold) {
+                        isSilent = false;
+                    } else {
+                        if (!isSilent) {
+                            silentDuration++;
+                        }
+                        isSilent = true;
+                    }
+                }
+            }
+            return silentDuration / sampleRate;
+        }
+
+        function CreateAudioFileAndAddButton() {
+            let audioChunk = recordedChunks[recordedChunks.length - 1];
+            let lastPTag = document.querySelector('.current-result').previousElementSibling;
+            lastPTag.setAttribute('data-id', allText.querySelectorAll('p').length - 1);
+
+            elementToCopy = document.querySelector('#replay-sample svg');
+            let playBtn = document.createElement('button');
+            let copiedElement = elementToCopy.cloneNode(true);
+            playBtn.appendChild(copiedElement);
+            playBtn.classList.add('play-btn');
+
+            playBtn.addEventListener('click', function (e) {
+                let audio = new Audio(this.blobUrl);
+
+                let btnClickEl = e.currentTarget
+                let parentEl = playBtn.parentNode;
+
+                // Tạo element cho loading bar
+                let loadingBar = document.createElement('div');
+                loadingBar.classList.add('loading-bar');
+                parentEl.insertBefore(loadingBar, btnClickEl.nextSibling);
+
+                audio.addEventListener("timeupdate", function () {
+                    var percent = (audio.currentTime / audio.duration) * 100;
+                    loadingBar.style.width = percent + "%";
+                });
+
+
+                audio.addEventListener("play", function () {
+                    loadingBar.style.width = "0%";
+                });
+
+
+                audio.addEventListener("canplaythrough", function () {
+                    // loadingBar.style.display = "none";
+                });
+
+
+                audio.addEventListener("loadstart", function () {
+                    loadingBar.style.display = "block";
+                });
+
+                audio.addEventListener('ended', function () {
+                    loadingBar.remove();
+                    audio.remove();
+                });
+
+                audio.setSinkId(selectedDeviceId).then(function () {
+                    audio.play();
+                }).catch(function (error) {
+                    console.error(error);
+                    alertDiv.classList.add('show');
+                    setTimeout(() => {
+                        alertDiv.innerText = error.message;
+                        alertDiv.classList.remove('show');
+                    }, 300);
+                });
+            });
+            lastPTag.appendChild(playBtn);
+
+
+            let timeoutID = setTimeout(function () {
+                let filteredChunks = recordedChunks.filter(ck => ck.streamId === audioChunk.streamId);
+                createBlobURLChunk(filteredChunks, audioChunk, playBtn).then(function (blobUrl) {
+                    clearTimeout(timeoutID);
+                }).catch(function (error) {
+                    alertDiv.classList.add('show');
+                    setTimeout(() => {
+                        alertDiv.innerText = error.message;
+                        alertDiv.classList.remove('show');
+                    }, 300);
+                });
+            }, 100);
+
+        }
+
+        function AudioBufferSlice(buffer, begin, end, callback) {
+            if (!(this instanceof AudioBufferSlice)) {
+                return new AudioBufferSlice(buffer, begin, end, callback);
+            }
+
+            let error = null;
+
+            let duration = buffer.duration;
+            let channels = buffer.numberOfChannels;
+            let rate = buffer.sampleRate;
+
+            if (typeof end === 'function') {
+                callback = end;
+                end = duration;
+            }
+
+            // milliseconds to seconds
+            begin = begin
+            end = end
+
+            if (begin < 0) {
+                error = new RangeError('begin time must be greater than 0');
+            }
+
+            if (end > duration + 0.1) {
+                error = new RangeError('end time must be less than or equal to ' + duration);
+            }
+
+            if (typeof callback !== 'function') {
+                error = new TypeError('callback must be a function');
+            }
+
+            let startOffset = rate * begin;
+            let endOffset = rate * end;
+            let frameCount = endOffset - startOffset;
+            let newArrayBuffer;
+
+            try {
+                let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                newArrayBuffer = audioContext.createBuffer(channels, endOffset - startOffset, rate);
+                let anotherArray = new Float32Array(frameCount);
+                let offset = 0;
+
+                for (let channel = 0; channel < channels; channel++) {
+                    buffer.copyFromChannel(anotherArray, channel, startOffset);
+                    newArrayBuffer.copyToChannel(anotherArray, channel, offset);
+                }
+            } catch (e) {
+                error = e;
+            }
+
+            callback(error, newArrayBuffer);
+        }
+
+        function bufferToWave(buffer) {
+            let channels = buffer.numberOfChannels;
+            let rate = buffer.sampleRate;
+            let length = buffer.length * channels * 2 + 44;
+            let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            let newBuffer = audioContext.createBuffer(channels, buffer.length, rate);
+            for (let i = 0; i < channels; i++) {
+                newBuffer.copyToChannel(buffer.getChannelData(i), i, 0);
+            }
+            let bufferView = new Uint8Array(length);
+            let bitsPerSample = 16;
+            let blockAlign = channels * bitsPerSample / 8;
+            let byteRate = rate * blockAlign;
+            bufferView.set(new Uint8Array([0x52, 0x49, 0x46, 0x46, (length & 0xff), (length >> 8) & 0xff, (length >> 16) & 0xff, (length >> 24) & 0xff, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6d, 0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, channels, (rate & 0xff), (rate >> 8) & 0xff, (rate >> 16) & 0xff, (rate >> 24) & 0xff, (byteRate & 0xff), (byteRate >> 8) & 0xff, (byteRate >> 16) & 0xff, (byteRate >> 24) & 0xff, (blockAlign & 0xff), (blockAlign >> 8) & 0xff, bitsPerSample, 0x00, 0x00, 0x00, 0x64, 0x61, 0x74, 0x61, (buffer.length * 2) & 0xff, ((buffer.length * 2) >> 8) & 0xff, ((buffer.length * 2) >> 16) & 0xff, ((buffer.length * 2) >> 24) & 0xff]));
+            for (let i = 0; i < buffer.length; i++) {
+                let offset = i * channels * 2 + 44;
+                for (let j = 0; j < channels; j++) {
+                    let sample = Math.max(-1, Math.min(1, buffer.getChannelData(j)[i]));
+                    let sample16 = (sample < 0 ? sample * 0x8000 : sample * 0x7fff) | 0;
+                    bufferView[offset] = sample16 & 0xff;
+                    bufferView[offset + 1] = (sample16 >> 8) & 0xff;
+                    offset += 2;
+                }
+            }
+            return new Blob([bufferView], { type: 'audio/wav' });
+        }
+
+        function wavArrayBufferToBlob(arrayBuffer) {
+            return new Blob([arrayBuffer], { type: 'audio/wav' });
+        }
+
+    </script>
+</body>
+
+</html>
