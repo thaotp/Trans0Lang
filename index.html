@@ -9,8 +9,6 @@
     <!-- <link href="https://fonts.googleapis.com/css?family=M+PLUS+Rounded+1c&display=swap" rel="stylesheet"> -->
     <!-- <script src="https://unpkg.com/kuroshiro@1.1.2/dist/kuroshiro.min.js"></script>
     <script src="https://unpkg.com/kuroshiro-analyzer-kuromoji@1.1.0/dist/kuroshiro-analyzer-kuromoji.min.js"></script> -->
-    <!-- <script src="https://www.unpkg.com/wavesurfer@1.3.4/dist/wavesurfer.min.js"></script> -->
-    <script src="https://unpkg.com/wavefile@11.0.0/dist/wavefile.js"></script>
     <script src="https://unpkg.com/audiobuffer-to-wav@1.0.0/index.js"></script>
     <style>
         body {
@@ -138,7 +136,7 @@
         }
 
         #all-text span {
-            display: block;
+            border-right: 1px dotted;
         }
 
         .on {
@@ -211,6 +209,16 @@
             margin-left: 5px;
         }
 
+        .stop-btn {
+            width: 27px;
+            height: 25px;
+            padding: 5px;
+            margin: 0;
+            text-align: center;
+            line-height: 0;
+            margin-left: 5px;
+        }
+
         .alert {
             display: none;
             padding: 15px;
@@ -246,6 +254,10 @@
             width: 0%;
             background-color: #4CAF50;
             transition: width 0.2s ease-in-out;
+        }
+
+        .hidden {
+            display: none;
         }
     </style>
 </head>
@@ -337,6 +349,30 @@
         });
         let recordedChunks = [];
         let alertDiv = document.getElementById('alert');
+
+        const allText = document.getElementById("all-text");
+
+        let mediaRecorder;
+        let recognition;
+
+        let isRecording = false;
+
+        let stopAutoScroll = false;
+        let autoScrollTimeoutId = false;
+        let autoStartTimeoutId = null;
+        let checkSilentTimeout = null;
+
+        // Define an array
+        const speechArr = [];
+        const AUTO_RESTART = 3000;
+        const SILENT_ARRAY = 50; //5s
+        let countIdle = 0;
+
+        let isSilent = false;
+
+
+
+
         // Get the list of available devices
         let selectedDeviceId = "a6f62344d6a5c657dd675ff3e4f14ee6e1c51f041b380dc0bc0ef73b6773039e";
         navigator.mediaDevices.enumerateDevices().then(devices => {
@@ -421,6 +457,26 @@
             }
         }
 
+        function insertSpan(text) {
+            // Tách đoạn văn bản thành mảng các từ, bằng cách tách bởi khoảng trắng
+            const words = text.split(' ');
+
+            // Lặp qua mảng các từ và bọc chúng trong thẻ span
+            const spans = words.map(word => `<span style="color:${getRandomColor()}">${word}</span>`);
+
+            // Kết hợp các đoạn văn bản trong thẻ p, sử dụng join để nối các đoạn lại
+            return `${spans.join(' ')}`;
+        }
+
+        function getRandomColor() {
+            const min = 0; // Giá trị tối thiểu cho mỗi thành phần màu (R, G, B)
+            const max = 128; // Giá trị tối đa cho mỗi thành phần màu (R, G, B)
+            const r = Math.floor(Math.random() * (max - min) + min);
+            const g = Math.floor(Math.random() * (max - min) + min);
+            const b = Math.floor(Math.random() * (max - min) + min);
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
 
         document
             .getElementById("record-toggle")
@@ -430,17 +486,6 @@
             .getElementById("b-note-download")
             .addEventListener("click", saveToDrive);
 
-        const allText = document.getElementById("all-text");
-
-        let mediaRecorder;
-        let recognition;
-
-        let isRecording = false;
-
-        let stopAutoScroll = false;
-        let autoScrollTimeoutId = false;
-        let autoStartTimeoutId = null;
-
         // Hàm tự động scroll xuống cuối phần tử
         function autoScroll() {
             if (!stopAutoScroll) {
@@ -448,14 +493,14 @@
             }
         }
 
-        // Hàm tạm dừng tính năng tự động scroll trong 2 giây
+        // Hàm tạm dừng tính năng tự động scroll trong 20 giây
         function pauseAutoScroll() {
             stopAutoScroll = true;
             clearTimeout(autoScrollTimeoutId);
             autoScrollTimeoutId = setTimeout(() => {
                 stopAutoScroll = false;
                 autoScroll();
-            }, 5000);
+            }, 20000);
         }
 
 
@@ -485,6 +530,11 @@
             function showUrl(url) {
                 const message = `File đã được lưu vào Drive với đường dẫn: ${url}`;
                 console.log(message);
+                let msg = setTimeout(() => {
+                    alertDiv.innerText = message;
+                    alertDiv.classList.remove('show');
+                    clearTimeout(msg);
+                }, 1000);
             }
             // Lấy nội dung của thẻ body
             const content = document.getElementById("all-text").innerText;
@@ -494,22 +544,28 @@
                 .saveWebContentToDrive(content);
         }
 
-        // Define an array
-        const speechArr = [];
+
 
         // Define a function to be triggered when a new element is added to the array
         function onNewElementPushed(target) {
             let timeoutID = setTimeout(function () {
                 let speechObject = target[target.length - 1]
+
                 let p = speechObject.element
+
+                // if (speechObject.text.trim() != '') {
+
+                // }
+
                 let buttonEl = p.querySelector('.play-btn');
-                // let originalButton = buttonEl.cloneNode(true);
-                // let originalOnClick = buttonEl.onclick;
-                p.textContent = checkEndOfSentence(
+
+                // p.textContent = checkEndOfSentence(
+                //     speechObject.text
+                // );
+
+                p.innerHTML = insertSpan(
                     speechObject.text
                 );
-                // p.appendChild(buttonEl);
-                // buttonEl.onclick = originalOnClick;
 
                 CreateAudioFileAndAddButton()
 
@@ -529,7 +585,6 @@
         let watchedSpeechArr = new Proxy(speechArr, {
             // Define a "set" trap to intercept new elements added to the array
             set: function (target, property, value) {
-
                 // Add the new element to the array
                 target[property] = value;
                 // Call the onNewElementPushed function when a new element is added to the array
@@ -582,12 +637,6 @@
             return microphoneDeviceId;
         }
 
-        // let wavesurfer = WaveSurfer.create({
-        //     container: document.querySelector('#wave'),
-        //     backend: 'MediaElement'
-        // });
-
-
         async function startRecording() {
 
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -619,13 +668,18 @@
             const sampleRate = 44100; // samples per second
 
             mediaRecorder.addEventListener('dataavailable', (event) => {
-                console.log(recordedChunks, "dataavailable")
+                // console.log(recordedChunks, "dataavailable")
+
                 if (event.data.size > 0) {
+
                     let audioChunk = {
                         id: recordedChunks.length,
                         data: event.data,
                         size: event.data.size,
-                        streamId: event.currentTarget.stream.id
+                        streamId: event.currentTarget.stream.id,
+                        isSilent: isSilent,
+                        gapTime: 0,
+                        time: Date.now()
                     }
                     recordedChunks.push(audioChunk)
                 }
@@ -636,11 +690,78 @@
                 console.log(recordedChunks, "stop")
             });
 
-            mediaRecorder.addEventListener('onerror', (event) => {
+            mediaRecorder.addEventListener('error', (event) => {
                 console.log(event)
             });
 
             mediaRecorder.start();
+
+            const MIN_DECIBELS = -45;
+            const audioContext = new AudioContext();
+            const audioStreamSource = audioContext.createMediaStreamSource(stream);
+            const analyser = audioContext.createAnalyser();
+            analyser.minDecibels = MIN_DECIBELS;
+            audioStreamSource.connect(analyser);
+
+            const bufferLength = analyser.frequencyBinCount;
+            const domainData = new Uint8Array(bufferLength);
+
+            let soundDetected = false;
+
+            let frequencyData = []
+
+            const detectSound = () => {
+                analyser.getByteFrequencyData(domainData);
+
+                let maxFrequency = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    const value = domainData[i];
+                    if (value > maxFrequency) {
+                        maxFrequency = value;
+                    }
+                }
+
+                frequencyData.push(maxFrequency)
+
+                // if (maxFrequency <= 0 && isRecording) {
+                //    mediaRecorder.requestData()
+                // }
+
+                if (frequencyData.length >= SILENT_ARRAY && isRecording) {
+                    frequencyData = frequencyData.slice(-SILENT_ARRAY)
+                    isSilent = frequencyData.every((value) => value === 0);
+                    if (isSilent) {
+                        if (mediaRecorder.state === 'recording') {
+                            if (recordedChunks.length > 0) {
+                                recordedChunks[recordedChunks.length - 1].gapTime = 9.5
+                                mediaRecorder.pause();
+                            }
+                        }
+                        frequencyData.length = 0;
+                    } else {
+                        if (mediaRecorder.state === 'paused') {
+                            mediaRecorder.resume();
+                        }
+                    }
+                }
+
+                // window.requestAnimationFrame(detectSound);
+                // checkSilentTimeout = setTimeout(() => {
+                //     detectSound()
+                // }, 100);
+            };
+
+            checkSilentTimeout = setInterval(() => {
+                countIdle += 100
+                if (countIdle >= SILENT_ARRAY * 100) {
+                    detectSound();
+                }
+            }, 100)
+
+
+
+            // window.requestAnimationFrame(detectSound);
+
 
             if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
                 recognition = new webkitSpeechRecognition();
@@ -658,13 +779,17 @@
 
                 autoStartTimeoutId = setInterval(function () {
                     countAutoStart += 500;
-                    if (recognition && countAutoStart >= 2000) {
+                    if (recognition && countAutoStart >= AUTO_RESTART) {
                         countAutoStart = 0;
                         recognition.stop();
                     }
                 }, 500);
 
                 recognition.onresult = function (event) {
+                    if (mediaRecorder.state === 'paused') {
+                        mediaRecorder.resume();
+                    }
+
                     const speechBox = document.getElementById("speech-box");
                     let transcript = "";
                     for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -673,9 +798,10 @@
 
                     // speechBox.innerText = transcript;
                     spanWrapper.innerText = transcript
-
-                    // console.log(transcript);
                     countAutoStart = 0; //reset
+                    countIdle = 0; //reset Idle and checking the silent
+                    isSilent = false;
+
                     if (event.results[event.results.length - 1].isFinal) {
                         let speechObject = {
                             element: spanWrapper,
@@ -683,10 +809,15 @@
                         }
                         spanWrapper.classList.add("recored-text");
 
+                        if (spanWrapper.innerText.trim() === "") {
+                            spanWrapper.classList.add('hidden')
+                        }
+
                         if (isRecording) {
                             mediaRecorder.requestData();
                         }
                         spanWrapper.classList.remove("current-result");
+
                         watchedSpeechArr.push(speechObject)
 
                         spanWrapper = document.createElement("p");
@@ -696,6 +827,7 @@
                         document.getElementById('virtual-speech').insertAdjacentElement('beforebegin', spanWrapper);
 
                         listenTextChange(document.getElementsByClassName("current-result")[0], callback);
+
                         autoScroll();
                     }
 
@@ -718,7 +850,7 @@
                     recognition.stop();
                     // setTimeout(() => {
                     //     recognition.start();
-                    // }, 1000); // Đợi 1 giây trước khi khởi động lại
+                    // }, 1500); // Đợi 1 giây trước khi khởi động lại
                 }
             };
 
@@ -731,6 +863,7 @@
                     console.log("Speech recognition service disconnected by manual");
                     speechArr.length = 0
                 } else {
+                    // Auto start here
                     recognition.start();
                     console.log(
                         "Speech recognition service disconnected and trying restart"
@@ -759,6 +892,7 @@
             if (!mediaRecorder) return;
 
             mediaRecorder.stop();
+            clearInterval(checkSilentTimeout);
 
             if (recognition) {
                 recognition.stop();
@@ -812,28 +946,35 @@
 
                         let totalDuration = audioBuffer.duration;
 
-                        let totalSize = audioChunks.map(function (chunk) {
-                            return chunk.size;
-                        }).reduce(function (a, b) {
-                            return a + b;
-                        }, 0);
+                        audioChunk.totalDuration = totalDuration;
 
+                        let totalSize = 0;
+                        for (let i = 0; i < audioChunks.length; i++) {
+                            totalSize += audioChunks[i].size;
+                        }
 
-                        let key = 'id'
                         let index = audioChunks.findIndex(obj => obj.id === audioChunk.id);
 
-                        let previousSize = audioChunks.slice(0, index).map(function (chunk) {
-                            return chunk.size;
-                        }).reduce(function (acc, cur) {
-                            return acc + cur;
-                        }, 0);
+                        let prevIndex = 0;
 
-                        let startOffsetInSeconds = (previousSize / totalSize) * totalDuration;
-                        let durationInSeconds = (audioChunk.size / totalSize) * totalDuration;
+                        if (index !== 0) {
+                            prevIndex = index - 1
+                        }
 
-                        console.log(startOffsetInSeconds, durationInSeconds)
+                        let prevAudioChunk = audioChunks[prevIndex]
+                        let startOffsetInSeconds = prevAudioChunk.totalDuration + prevAudioChunk.gapTime;
+                        if (prevAudioChunk.id === audioChunk.id) {
+                            startOffsetInSeconds = 0;
+                        }
 
-                        AudioBufferSlice(audioBuffer, startOffsetInSeconds, startOffsetInSeconds + durationInSeconds, function (error, slicedAudioBuffer) {
+
+                        // let start1 =  Math.abs((audioChunk.time - audioChunks[0].time) / 1000);
+
+
+                        console.log(audioChunks)
+                        // console.log(startOffsetInSeconds, totalDuration - durationInSeconds)
+
+                        AudioBufferSlice(audioBuffer, startOffsetInSeconds, totalDuration, function (error, slicedAudioBuffer) {
                             if (error) {
                                 console.error(error);
                             } else {
@@ -846,14 +987,14 @@
                                 // source.connect(gainNode);
                                 // source.connect(audioContext.destination);
                                 // source.start();
-
-                                // let blob = bufferToWave(slicedAudioBuffer);
                                 let wav = audioBufferToWav(slicedAudioBuffer)
 
                                 let audioBlob = wavArrayBufferToBlob(wav)
                                 blobUrl = URL.createObjectURL(audioBlob);
                                 console.log('Blob URL:', blobUrl);
                                 playBtn.blobUrl = blobUrl
+                                playBtn.setAttribute('data-blob', blobUrl);
+                                playBtn.style.visibility = null;
                                 resolve(blobUrl);
                             }
                         });
@@ -871,47 +1012,22 @@
             });
         }
 
-
-        function getSilentDuration(audioBuffer, startByte, endByte) {
-            let bufferLength = audioBuffer.length;
-            let sampleRate = audioBuffer.sampleRate;
-            let numChannels = audioBuffer.numberOfChannels;
-            let bytesPerSample = 4; // assuming 32-bit float
-            let samplesPerByte = numChannels * bytesPerSample;
-            let startSample = startByte / samplesPerByte;
-            let endSample = endByte / samplesPerByte;
-            let silentDuration = 0;
-            let isSilent = true;
-            let threshold = 0.001
-            for (let channel = 0; channel < numChannels; channel++) {
-                let channelData = audioBuffer.getChannelData(channel);
-                for (let i = startSample; i < endSample; i++) {
-                    let absValue = Math.abs(channelData[i]);
-                    if (absValue > threshold) {
-                        isSilent = false;
-                    } else {
-                        if (!isSilent) {
-                            silentDuration++;
-                        }
-                        isSilent = true;
-                    }
-                }
-            }
-            return silentDuration / sampleRate;
-        }
-
         function CreateAudioFileAndAddButton() {
-            let audioChunk = recordedChunks[recordedChunks.length - 1];
+            let audioChunk = recordedChunks.findLast(chunk => !chunk.isSilent);
+
             let lastPTag = document.querySelector('.current-result').previousElementSibling;
             lastPTag.setAttribute('data-id', allText.querySelectorAll('p').length - 1);
+
 
             elementToCopy = document.querySelector('#replay-sample svg');
             let playBtn = document.createElement('button');
             let copiedElement = elementToCopy.cloneNode(true);
             playBtn.appendChild(copiedElement);
             playBtn.classList.add('play-btn');
+            playBtn.style.visibility = 'hidden';
 
             playBtn.addEventListener('click', function (e) {
+
                 let audio = new Audio(this.blobUrl);
 
                 let btnClickEl = e.currentTarget
@@ -921,6 +1037,24 @@
                 let loadingBar = document.createElement('div');
                 loadingBar.classList.add('loading-bar');
                 parentEl.insertBefore(loadingBar, btnClickEl.nextSibling);
+
+
+                // Tạo một button mới
+                let stopBtn = document.createElement('button');
+                stopBtn.classList.add('stop-btn');
+                stopBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"/><path d="M6 6h12v12H6z"/></svg>';
+                // Thêm button mới vào DOM trước button click
+                btnClickEl.parentNode.insertBefore(stopBtn, btnClickEl.nextSibling);
+
+                // Đăng ký sự kiện click cho button mới
+                stopBtn.addEventListener('click', function (e) {
+                    // Tạm dừng audio và ẩn button stop
+                    audio.currentTime = 0;
+                    audio.pause();
+                    // Ẩn button click khi button stop được hiển thị
+                    btnClickEl.style.display = 'initial';
+                    stopBtn.remove();
+                });
 
                 audio.addEventListener("timeupdate", function () {
                     var percent = (audio.currentTime / audio.duration) * 100;
@@ -937,7 +1071,6 @@
                     // loadingBar.style.display = "none";
                 });
 
-
                 audio.addEventListener("loadstart", function () {
                     loadingBar.style.display = "block";
                 });
@@ -945,18 +1078,33 @@
                 audio.addEventListener('ended', function () {
                     loadingBar.remove();
                     audio.remove();
+                    stopBtn.style.display = 'none';
+                    stopBtn.remove();
+                    btnClickEl.style.display = 'initial';
                 });
 
                 audio.setSinkId(selectedDeviceId).then(function () {
-                    audio.play();
+                    if (audio.paused) {
+                        // Play the audio
+                        audio.play();
+                        btnClickEl.style.display = 'none';
+                    } else {
+                        // Pause the audio
+                        audio.pause();
+                    }
                 }).catch(function (error) {
                     console.error(error);
                     alertDiv.classList.add('show');
-                    setTimeout(() => {
+                    stopBtn.remove();
+                    let errorMsg = setTimeout(() => {
                         alertDiv.innerText = error.message;
                         alertDiv.classList.remove('show');
-                    }, 300);
+                        clearTimeout(errorMsg);
+                    }, 1000);
                 });
+
+
+
             });
             lastPTag.appendChild(playBtn);
 
@@ -967,10 +1115,11 @@
                     clearTimeout(timeoutID);
                 }).catch(function (error) {
                     alertDiv.classList.add('show');
-                    setTimeout(() => {
+                    let errorMsg = setTimeout(() => {
                         alertDiv.innerText = error.message;
                         alertDiv.classList.remove('show');
-                    }, 300);
+                        clearTimeout(errorMsg);
+                    }, 1000);
                 });
             }, 100);
 
@@ -1028,33 +1177,6 @@
             }
 
             callback(error, newArrayBuffer);
-        }
-
-        function bufferToWave(buffer) {
-            let channels = buffer.numberOfChannels;
-            let rate = buffer.sampleRate;
-            let length = buffer.length * channels * 2 + 44;
-            let audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            let newBuffer = audioContext.createBuffer(channels, buffer.length, rate);
-            for (let i = 0; i < channels; i++) {
-                newBuffer.copyToChannel(buffer.getChannelData(i), i, 0);
-            }
-            let bufferView = new Uint8Array(length);
-            let bitsPerSample = 16;
-            let blockAlign = channels * bitsPerSample / 8;
-            let byteRate = rate * blockAlign;
-            bufferView.set(new Uint8Array([0x52, 0x49, 0x46, 0x46, (length & 0xff), (length >> 8) & 0xff, (length >> 16) & 0xff, (length >> 24) & 0xff, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6d, 0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, channels, (rate & 0xff), (rate >> 8) & 0xff, (rate >> 16) & 0xff, (rate >> 24) & 0xff, (byteRate & 0xff), (byteRate >> 8) & 0xff, (byteRate >> 16) & 0xff, (byteRate >> 24) & 0xff, (blockAlign & 0xff), (blockAlign >> 8) & 0xff, bitsPerSample, 0x00, 0x00, 0x00, 0x64, 0x61, 0x74, 0x61, (buffer.length * 2) & 0xff, ((buffer.length * 2) >> 8) & 0xff, ((buffer.length * 2) >> 16) & 0xff, ((buffer.length * 2) >> 24) & 0xff]));
-            for (let i = 0; i < buffer.length; i++) {
-                let offset = i * channels * 2 + 44;
-                for (let j = 0; j < channels; j++) {
-                    let sample = Math.max(-1, Math.min(1, buffer.getChannelData(j)[i]));
-                    let sample16 = (sample < 0 ? sample * 0x8000 : sample * 0x7fff) | 0;
-                    bufferView[offset] = sample16 & 0xff;
-                    bufferView[offset + 1] = (sample16 >> 8) & 0xff;
-                    offset += 2;
-                }
-            }
-            return new Blob([bufferView], { type: 'audio/wav' });
         }
 
         function wavArrayBufferToBlob(arrayBuffer) {
